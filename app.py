@@ -205,4 +205,4 @@ if __name__ == "__main__":
     os.makedirs("templates", exist_ok=True)
     print("\n  Beta Relevering Web App")
     print("  → http://localhost:5000\n")
-    app.run(debug=False, port=5000, threaded=True)
+    app.run(debug=False, port=int(os.environ.get("PORT", 5000)), threaded=True)
