@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Beta Relevering Calculator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+
+    .log-box { max-height: 220px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #475569 #0f172a; }
+    .log-box::-webkit-scrollbar { width: 4px; }
+    .log-box::-webkit-scrollbar-track { background: #0f172a; }
+    .log-box::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { animation: spin 0.8s linear infinite; }
+
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-up { animation: fadeUp 0.4s ease-out; }
+
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.4); }
+      50%       { box-shadow: 0 0 0 12px rgba(16,185,129,0); }
+    }
+    .glow { animation: pulse-glow 2s ease-in-out 3; }
+
+    .step-badge { width: 2rem; height: 2rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
+  </style>
+</head>
+
+<body class="bg-slate-100 min-h-screen">
+
+  <!-- ── Header ──────────────────────────────────────────────────── -->
+  <header class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white shadow-2xl sticky top-0 z-10">
+    <div class="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div>
+        <h1 class="text-xl font-bold tracking-tight">Beta Relevering Calculator</h1>
+        <p class="text-slate-400 text-xs mt-0.5">Gemini AI · Yahoo Finance · Hamada Equation</p>
+      </div>
+      <span class="text-xs bg-slate-700 text-slate-300 px-3 py-1 rounded-full mono">t = 22%</span>
+    </div>
+  </header>
+
+  <main class="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+
+    <!-- ═══════════════════════════════════════════════════════════
+         STEP 1 — Peer Analysis & Unlevered Beta
+    ═══════════════════════════════════════════════════════════════ -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center gap-3">
+        <span class="step-badge bg-blue-600 text-white">1</span>
+        <div>
+          <h2 class="font-semibold text-slate-800 text-sm">Peer Analysis &amp; Unlevered Beta</h2>
+          <p class="text-xs text-slate-500">Find comparable listed companies → compute average β_U via Hamada equation</p>
+        </div>
+      </div>
+
+      <!-- Input row -->
+      <div class="px-6 pt-5 pb-4">
+        <div class="flex gap-2">
+          <input
+            id="companyInput"
+            type="text"
+            placeholder="e.g.  Mergedeck,  Sarvam AI,  Krutim,  QpiAI …"
+            class="flex-1 px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <button
+            id="analyzeBtn"
+            onclick="analyzeCompany()"
+            class="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:scale-95 transition-all flex items-center gap-2 whitespace-nowrap"
+          >
+            <span id="analyzeTxt">Analyze →</span>
+            <svg id="analyzeSpinner" class="spin w-4 h-4 hidden" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Live log -->
+      <div id="logWrap" class="hidden px-6 pb-4">
+        <details open>
+          <summary class="text-xs text-slate-400 cursor-pointer select-none mb-2 hover:text-slate-600">▸ Pipeline Log</summary>
+          <div id="logBox" class="log-box bg-slate-900 rounded-xl p-3 mono text-xs text-slate-300 space-y-px leading-5"></div>
+        </details>
+      </div>
+
+      <!-- Skipped warning -->
+      <div id="skippedBanner" class="hidden mx-6 mb-3 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2"></div>
+
+      <!-- Results table -->
+      <div id="step1Results" class="hidden px-6 pb-6 fade-up">
+        <div class="overflow-x-auto rounded-xl border border-slate-200">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <th class="text-left px-4 py-3 font-medium">Company</th>
+                <th class="text-left px-4 py-3 font-medium">Ticker</th>
+                <th class="text-right px-4 py-3 font-medium">D/E</th>
+                <th class="text-right px-4 py-3 font-medium">β_L</th>
+                <th class="text-right px-4 py-3 font-medium">β_U</th>
+              </tr>
+            </thead>
+            <tbody id="peersBody" class="divide-y divide-slate-100"></tbody>
+            <tfoot>
+              <tr class="bg-blue-50 border-t-2 border-blue-200">
+                <td colspan="4" class="px-4 py-3 text-sm font-semibold text-blue-800">
+                  Average Unlevered Beta <span class="font-normal text-blue-600">(β_U avg)</span>
+                </td>
+                <td id="avgBetaCell" class="px-4 py-3 text-right font-bold text-blue-900 mono text-base"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <p class="text-xs text-slate-400 mt-2 mono">β_U = β_L / [1 + (1 − 0.22) × D/E]</p>
+      </div>
+
+      <!-- Error -->
+      <div id="step1Err" class="hidden mx-6 mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3"></div>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════
+         STEP 2 — Upload Balance Sheet → Extract D/E
+    ═══════════════════════════════════════════════════════════════ -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center gap-3">
+        <span class="step-badge bg-violet-600 text-white">2</span>
+        <div>
+          <h2 class="font-semibold text-slate-800 text-sm">Target Company — Balance Sheet D/E</h2>
+          <p class="text-xs text-slate-500">Upload the target firm's balance sheet to extract its Debt/Equity ratio</p>
+        </div>
+      </div>
+
+      <div class="px-6 py-5">
+        <div class="flex gap-2 flex-wrap">
+          <!-- File picker -->
+          <label class="flex-1 min-w-52 cursor-pointer">
+            <div id="dropZone" class="flex items-center gap-2 px-4 py-2.5 border border-dashed border-slate-300 rounded-xl text-sm text-slate-500 hover:border-violet-400 hover:bg-violet-50 transition-colors">
+              <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+              </svg>
+              <span id="fileLabel">Choose file &nbsp;·&nbsp; PDF &nbsp;·&nbsp; Excel &nbsp;·&nbsp; CSV &nbsp;·&nbsp; Image</span>
+            </div>
+            <input type="file" id="fileInput" class="hidden"
+              accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.csv"
+              onchange="onFileChange()" />
+          </label>
+          <button
+            id="extractBtn"
+            onclick="extractDE()"
+            class="px-5 py-2.5 bg-violet-600 text-white rounded-xl text-sm font-semibold hover:bg-violet-700 active:scale-95 transition-all flex items-center gap-2 whitespace-nowrap"
+          >
+            <span id="extractTxt">Extract D/E →</span>
+            <svg id="extractSpinner" class="spin w-4 h-4 hidden" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- D/E extracted result -->
+      <div id="step2Results" class="hidden px-6 pb-6 fade-up">
+        <div class="bg-violet-50 border border-violet-200 rounded-xl p-4">
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+            <div>
+              <p class="text-xs text-slate-500 mb-0.5">Company</p>
+              <p id="deCompany" class="font-semibold text-slate-800 truncate">—</p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 mb-0.5">Period</p>
+              <p id="dePeriod" class="font-semibold text-slate-800">—</p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 mb-0.5">Total Debt</p>
+              <p id="deDebt" class="font-semibold text-slate-800">—</p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 mb-0.5">Total Equity</p>
+              <p id="deEquity" class="font-semibold text-slate-800">—</p>
+            </div>
+          </div>
+          <div class="mt-4 pt-3 border-t border-violet-200 flex items-center gap-4">
+            <span class="text-sm font-medium text-violet-800">Extracted D/E Ratio:</span>
+            <span id="deRatioVal" class="text-2xl font-bold text-violet-900 mono"></span>
+          </div>
+          <p id="deNotes" class="text-xs text-slate-500 mt-2 hidden italic"></p>
+        </div>
+      </div>
+
+      <!-- Error -->
+      <div id="step2Err" class="hidden mx-6 mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3"></div>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════════
+         STEP 3 — Relevered Beta
+    ═══════════════════════════════════════════════════════════════ -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center gap-3">
+        <span class="step-badge bg-emerald-600 text-white">3</span>
+        <div>
+          <h2 class="font-semibold text-slate-800 text-sm">Relevered Beta</h2>
+          <p class="text-xs text-slate-500">Apply target firm's capital structure to the unlevered peer beta</p>
+        </div>
+      </div>
+
+      <!-- Placeholder -->
+      <div id="step3Placeholder" class="px-6 py-10 text-center text-slate-400 text-sm">
+        Complete Steps 1 and 2 to see the Relevered Beta
+      </div>
+
+      <!-- Result -->
+      <div id="step3Result" class="hidden px-6 py-6 fade-up">
+
+        <!-- Formula box -->
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-5 mono text-sm">
+          <p class="text-xs text-slate-400 mb-3 font-sans font-medium">Hamada Equation — Relevering</p>
+          <p class="text-slate-500">β_Relevered  =  β_U  ×  [ 1 + (1 − t)  ×  D/E ]</p>
+          <p id="formulaStep1" class="text-slate-600 mt-1.5"></p>
+          <p id="formulaStep2" class="text-slate-700 mt-1 font-semibold"></p>
+        </div>
+
+        <!-- Big result card -->
+        <div id="resultCard" class="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-8 text-white text-center shadow-xl glow">
+          <p class="text-sm font-medium text-emerald-100 tracking-wide uppercase mb-2">Relevered Beta (β_L)</p>
+          <p id="releveredVal" class="text-6xl font-bold mono tracking-tight"></p>
+          <p id="releveredInterp" class="text-sm text-emerald-100 mt-3"></p>
+        </div>
+
+        <!-- Summary pills -->
+        <div class="mt-5 grid grid-cols-3 gap-3 text-center">
+          <div class="bg-slate-50 border border-slate-200 rounded-xl py-3 px-2">
+            <p class="text-xs text-slate-500 mb-1">Avg β_U (peers)</p>
+            <p id="summBetaU" class="text-lg font-bold text-slate-700 mono"></p>
+          </div>
+          <div class="bg-slate-50 border border-slate-200 rounded-xl py-3 px-2">
+            <p class="text-xs text-slate-500 mb-1">Target D/E</p>
+            <p id="summDE" class="text-lg font-bold text-slate-700 mono"></p>
+          </div>
+          <div class="bg-slate-50 border border-slate-200 rounded-xl py-3 px-2">
+            <p class="text-xs text-slate-500 mb-1">Tax Rate (t)</p>
+            <p class="text-lg font-bold text-slate-700 mono">22%</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main><!-- /main -->
+
+
+  <!-- ── JavaScript ──────────────────────────────────────────────── -->
+  <script>
+    const TAX = 0.22;
+    let avgBetaU = null;
+    let targetDE = null;
+
+    // ── Utilities ─────────────────────────────────────────────────
+    function setLoading(btn, on) {
+      if (btn === 'analyze') {
+        document.getElementById('analyzeBtn').disabled = on;
+        document.getElementById('analyzeTxt').textContent = on ? 'Analyzing…' : 'Analyze →';
+        document.getElementById('analyzeSpinner').classList.toggle('hidden', !on);
+      } else {
+        document.getElementById('extractBtn').disabled = on;
+        document.getElementById('extractTxt').textContent = on ? 'Extracting…' : 'Extract D/E →';
+        document.getElementById('extractSpinner').classList.toggle('hidden', !on);
+      }
+    }
+
+    function showErr(id, msg) {
+      const el = document.getElementById(id);
+      el.textContent = '⚠  ' + msg;
+      el.classList.remove('hidden');
+    }
+
+    function hide(id) { document.getElementById(id).classList.add('hidden'); }
+    function show(id) { document.getElementById(id).classList.remove('hidden'); }
+
+    function fmt(v) {
+      if (v == null) return 'N/A';
+      return Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 });
+    }
+
+    function interpretBeta(b) {
+      if (b > 1.5) return 'Very High Risk — moves aggressively with market';
+      if (b > 1.0) return 'High Risk — moves more than market';
+      if (b > 0.5) return 'Moderate Risk — moves less than market';
+      if (b > 0.0) return 'Low Risk — defensive';
+      if (b < 0.0) return 'Inverse to market';
+      return 'Uncorrelated with market';
+    }
+
+    // ── Step 1 ────────────────────────────────────────────────────
+    async function analyzeCompany() {
+      const name = document.getElementById('companyInput').value.trim();
+      if (!name) { alert('Please enter a company name.'); return; }
+
+      avgBetaU = null;
+      resetStep3();
+      hide('step1Results');
+      hide('step1Err');
+      hide('skippedBanner');
+      document.getElementById('logBox').innerHTML = '';
+      show('logWrap');
+      setLoading('analyze', true);
+
+      try {
+        const res = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ company_name: name }),
+        });
+
+        const reader  = res.body.getReader();
+        const decoder = new TextDecoder();
+        let   buf     = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split('\n');
+          buf = lines.pop();
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            try { handleSSE(JSON.parse(line.slice(6))); } catch (_) {}
+          }
+        }
+      } catch (err) {
+        showErr('step1Err', 'Request failed: ' + err.message);
+      } finally {
+        setLoading('analyze', false);
+      }
+    }
+
+    function handleSSE(ev) {
+      if (ev.type === 'log') {
+        appendLog(ev.text);
+      } else if (ev.type === 'error') {
+        showErr('step1Err', ev.message);
+      } else if (ev.type === 'result') {
+        renderPeers(ev);
+      }
+    }
+
+    function appendLog(text) {
+      const box  = document.getElementById('logBox');
+      const line = document.createElement('div');
+      line.textContent = text;
+      box.appendChild(line);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function renderPeers(data) {
+      if (data.skipped && data.skipped.length) {
+        const b = document.getElementById('skippedBanner');
+        b.textContent = 'Skipped (missing Beta or D/E): ' + data.skipped.join(', ');
+        show('skippedBanner');
+      }
+
+      const tbody = document.getElementById('peersBody');
+      tbody.innerHTML = '';
+      for (const r of data.results) {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-50 transition-colors';
+        tr.innerHTML = `
+          <td class="px-4 py-3 text-slate-800 font-medium">${r.name}</td>
+          <td class="px-4 py-3 text-slate-500 mono text-xs">${r.ticker}</td>
+          <td class="px-4 py-3 text-right mono text-xs">${r.de_ratio.toFixed(4)}</td>
+          <td class="px-4 py-3 text-right mono text-xs">${r.beta_l.toFixed(4)}</td>
+          <td class="px-4 py-3 text-right mono text-sm font-semibold text-blue-700">${r.beta_u.toFixed(6)}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+
+      document.getElementById('avgBetaCell').textContent = data.avg_beta_u.toFixed(6);
+      show('step1Results');
+      avgBetaU = data.avg_beta_u;
+      tryCalc();
+    }
+
+    // ── Step 2 ────────────────────────────────────────────────────
+    function onFileChange() {
+      const f = document.getElementById('fileInput').files[0];
+      document.getElementById('fileLabel').textContent =
+        f ? f.name : 'Choose file  ·  PDF · Excel · CSV · Image';
+    }
+
+    async function extractDE() {
+      const fi = document.getElementById('fileInput');
+      if (!fi.files.length) { alert('Please select a file.'); return; }
+
+      targetDE = null;
+      resetStep3();
+      hide('step2Results');
+      hide('step2Err');
+      setLoading('extract', true);
+
+      const fd = new FormData();
+      fd.append('file', fi.files[0]);
+
+      try {
+        const res  = await fetch('/api/extract-de', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok || data.error) { showErr('step2Err', data.error || 'Extraction failed.'); return; }
+        renderDE(data);
+      } catch (err) {
+        showErr('step2Err', 'Request failed: ' + err.message);
+      } finally {
+        setLoading('extract', false);
+      }
+    }
+
+    function renderDE(d) {
+      document.getElementById('deCompany').textContent  = d.company         || 'N/A';
+      document.getElementById('dePeriod').textContent   = d.financial_period|| 'N/A';
+      document.getElementById('deDebt').textContent     = d.total_debt  != null ? fmt(d.total_debt)   + (d.currency_unit ? '  ' + d.currency_unit : '') : 'N/A';
+      document.getElementById('deEquity').textContent   = d.total_equity != null ? fmt(d.total_equity) + (d.currency_unit ? '  ' + d.currency_unit : '') : 'N/A';
+      document.getElementById('deRatioVal').textContent = d.de_ratio != null ? Number(d.de_ratio).toFixed(4) : 'N/A';
+
+      const notes = document.getElementById('deNotes');
+      if (d.notes) { notes.textContent = d.notes; show('deNotes'); } else { hide('deNotes'); }
+
+      show('step2Results');
+      targetDE = d.de_ratio;
+      tryCalc();
+    }
+
+    // ── Step 3 ────────────────────────────────────────────────────
+    function tryCalc() {
+      if (avgBetaU === null || targetDE === null) return;
+
+      const factor    = 1 + (1 - TAX) * targetDE;
+      const relevered = avgBetaU * factor;
+
+      document.getElementById('formulaStep1').textContent =
+        `β_Relevered  =  ${avgBetaU.toFixed(4)}  ×  [ 1 + (1 − ${TAX})  ×  ${Number(targetDE).toFixed(4)} ]`;
+      document.getElementById('formulaStep2').textContent =
+        `β_Relevered  =  ${avgBetaU.toFixed(4)}  ×  ${factor.toFixed(4)}  =  ${relevered.toFixed(4)}`;
+
+      document.getElementById('releveredVal').textContent   = relevered.toFixed(4);
+      document.getElementById('releveredInterp').textContent = interpretBeta(relevered);
+
+      document.getElementById('summBetaU').textContent = avgBetaU.toFixed(4);
+      document.getElementById('summDE').textContent    = Number(targetDE).toFixed(4);
+
+      hide('step3Placeholder');
+      show('step3Result');
+    }
+
+    function resetStep3() {
+      show('step3Placeholder');
+      hide('step3Result');
+    }
+
+    // Enter key on company input
+    document.getElementById('companyInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') analyzeCompany();
+    });
+  </script>
+
+</body>
+</html>
