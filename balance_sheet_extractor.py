@@ -31,9 +31,19 @@ except ImportError:
     print("Missing dependency. Run:  pip install google-genai")
     sys.exit(1)
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 # ── Configuration ──────────────────────────────────────────────────────────────
-GEMINI_API_KEY = "AIzaSyAyMiwk7iAT2hARvOO4EwLir20s6_ofBYA"
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 MODEL          = "gemini-2.0-flash"
+
+if not GEMINI_API_KEY:
+    print("Error: GEMINI_API_KEY not set. Add it to a .env file or environment.")
+    sys.exit(1)
 
 # File types uploaded to Gemini Files API (multimodal)
 UPLOAD_MIME = {
