@@ -57,8 +57,8 @@ class _QueueWriter:
 
 @app.after_request
 def add_headers(response):
-    response.headers['X-Frame-Options'] = 'ALLOW-FROM https://mergedeck.com'
-    response.headers['Content-Security-Policy'] = "frame-ancestors 'self' https://mergedeck.com"
+    response.headers['X-Frame-Options'] = 'ALLOW-FROM http://localhost:3000'
+    response.headers['Content-Security-Policy'] = "frame-ancestors 'self' http://localhost:3000 https://mergedeck.com"
     return response
 
 
