@@ -55,6 +55,13 @@ class _QueueWriter:
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
 
+@app.after_request
+def add_headers(response):
+    response.headers['X-Frame-Options'] = 'ALLOW-FROM https://mergedeck.com'
+    response.headers['Content-Security-Policy'] = "frame-ancestors 'self' https://mergedeck.com"
+    return response
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
